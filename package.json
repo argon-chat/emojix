@@ -1,0 +1,51 @@
+{
+  "name": "@argon-chat/emojix",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "./dist/emojix.cjs",
+  "module": "./dist/emojix.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/emojix.mjs",
+      "require": "./dist/emojix.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./style.css": "./dist/assets/emojix.css"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "dev:playground": "vite --config playground/vite.config.ts",
+    "build": "vue-tsc --noEmit && vite build && bun run build:types",
+    "build:types": "vue-tsc -p tsconfig.build.json",
+    "typecheck": "vue-tsc --noEmit",
+    "preview": "vite preview",
+    "generate:atlas": "bun run scripts/generate-atlas.ts",
+    "generate:data": "bun run scripts/generate-data.ts",
+    "generate": "bun run generate:atlas && bun run generate:data"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/bun": "latest",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "emojibase": "^17.0.0",
+    "emojibase-data": "^17.0.0",
+    "esbuild": "^0.28.0",
+    "sharp": "^0.34.5",
+    "svgo": "^4.0.1",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.0.0",
+    "vite": "^8.0.7",
+    "vue": "^3.5.32",
+    "vue-tsc": "^3.2.6"
+  }
+}

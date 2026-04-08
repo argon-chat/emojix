@@ -1,0 +1,54 @@
+/**
+ * Emojix CSS Variables & Base Styles
+ * Import this file to get default styling
+ */
+
+:root {
+  /* Colors - Light theme */
+  --emojix-bg: #ffffff;
+  --emojix-bg-secondary: #f9fafb;
+  --emojix-bg-hover: rgba(0, 0, 0, 0.05);
+  --emojix-bg-active: rgba(59, 130, 246, 0.1);
+  --emojix-bg-sticky: rgba(255, 255, 255, 0.9);
+  --emojix-border: #e5e7eb;
+  --emojix-text: #1f2937;
+  --emojix-text-muted: #9ca3af;
+  --emojix-accent: #3b82f6;
+  --emojix-scrollbar: #d1d5db;
+  
+  /* Sizing */
+  --emojix-radius: 8px;
+  --emojix-sprite-radius: 4px;
+  
+  /* Typography */
+  --emojix-font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Dark theme via class */
+.dark,
+[data-theme="dark"] {
+  --emojix-bg: #1f2937;
+  --emojix-bg-secondary: #111827;
+  --emojix-bg-hover: rgba(255, 255, 255, 0.1);
+  --emojix-bg-active: rgba(59, 130, 246, 0.2);
+  --emojix-bg-sticky: rgba(31, 41, 55, 0.9);
+  --emojix-border: #374151;
+  --emojix-text: #f9fafb;
+  --emojix-text-muted: #9ca3af;
+  --emojix-scrollbar: #4b5563;
+}
+
+/* Dark theme via media query */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not([data-theme="light"]) {
+    --emojix-bg: #1f2937;
+    --emojix-bg-secondary: #111827;
+    --emojix-bg-hover: rgba(255, 255, 255, 0.1);
+    --emojix-bg-active: rgba(59, 130, 246, 0.2);
+    --emojix-bg-sticky: rgba(31, 41, 55, 0.9);
+    --emojix-border: #374151;
+    --emojix-text: #f9fafb;
+    --emojix-text-muted: #9ca3af;
+    --emojix-scrollbar: #4b5563;
+  }
+}
