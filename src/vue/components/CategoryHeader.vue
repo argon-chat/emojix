@@ -5,7 +5,7 @@
  */
 import type { Category } from '@/core';
 
-const props = withDefaults(defineProps<{
+withDefaults(defineProps<{
   /** Category metadata */
   category: Category;
   /** Is this header sticky (pinned at top) */
