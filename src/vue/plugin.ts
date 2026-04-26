@@ -3,7 +3,7 @@
  * Provides global configuration and components
  */
 
-import type { App, Plugin } from 'vue';
+import type { App } from 'vue';
 import type { AtlasManifest } from '@/core';
 import { atlasLoader, emojiRegistry } from '@/core';
 import type { EmojiEntry } from '@/core';
@@ -31,7 +31,7 @@ export interface EmojixPluginOptions {
 /**
  * Create the Emojix plugin
  */
-export function createEmojix(options: EmojixPluginOptions = {}): Plugin {
+export function createEmojix(options: EmojixPluginOptions = {}): { install: (app: App) => Promise<void> } {
   const {
     registerComponents = true,
     componentPrefix = '',
