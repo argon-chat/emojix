@@ -7,6 +7,9 @@
  * - Renders emoji as <img> elements or synced canvas for video
  * - Exports plaintext with unicode emoji for copying/sending
  * - Video emoji are synchronized via VideoSyncManager
+ * 
+ * Headless-friendly: exposes cursor position API in plaintext coordinates
+ * so parent components can implement mentions, slash commands, auto-replace etc.
  */
 import { 
   ref, 
@@ -42,6 +45,8 @@ const props = withDefaults(defineProps<{
   autofocus?: boolean;
   /** Single line mode (no enter) */
   singleLine?: boolean;
+  /** Unstyled mode — no wrapper border/bg, for embedding in custom containers */
+  unstyled?: boolean;
 }>(), {
   modelValue: '',
   placeholder: '',
@@ -50,6 +55,7 @@ const props = withDefaults(defineProps<{
   disabled: false,
   autofocus: false,
   singleLine: false,
+  unstyled: false,
 });
 
 const emit = defineEmits<{
@@ -57,6 +63,9 @@ const emit = defineEmits<{
   'submit': [value: string];
   'focus': [];
   'blur': [];
+  'keydown': [event: KeyboardEvent];
+  'input': [];
+  'paste': [event: ClipboardEvent];
 }>();
 
 // Refs
@@ -205,15 +214,10 @@ const textToHtml = (text: string): string => {
 };
 
 /**
- * Convert rich HTML back to plaintext
+ * Convert rich HTML back to plaintext (from a DOM node tree).
+ * Used internally to extract plaintext from the contenteditable.
  */
-const htmlToText = (html: string): string => {
-  if (!html) return '';
-  
-  // Create temp element to parse HTML
-  const temp = document.createElement('div');
-  temp.innerHTML = html;
-  
+const htmlToTextFromNode = (root: Node): string => {
   let text = '';
   
   const walk = (node: Node) => {
@@ -247,10 +251,190 @@ const htmlToText = (html: string): string => {
     }
   };
   
-  walk(temp);
+  walk(root);
   
   // Trim trailing newlines from block elements
   return text.replace(/\n+$/, '');
+};
+
+/**
+ * Convert rich HTML string back to plaintext
+ */
+const htmlToText = (html: string): string => {
+  if (!html) return '';
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  return htmlToTextFromNode(temp);
+};
+
+// ── Plaintext cursor position API ──
+// These methods convert between DOM Selection/Range (contenteditable world)
+// and integer offsets in the plaintext string (what the consumer works with).
+
+/**
+ * Get plaintext offset of the current cursor position.
+ * Walks the DOM tree and counts text chars + data-emoji lengths up to the cursor.
+ */
+const getCursorOffset = (): number => {
+  const el = editorRef.value;
+  if (!el) return 0;
+  
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return 0;
+  
+  const range = sel.getRangeAt(0);
+  
+  // Create a range from start of editor to cursor
+  const preRange = document.createRange();
+  preRange.setStart(el, 0);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  
+  // Clone contents and measure plaintext length
+  const fragment = preRange.cloneContents();
+  const temp = document.createElement('div');
+  temp.appendChild(fragment);
+  
+  return htmlToTextFromNode(temp).length;
+};
+
+/**
+ * Get plaintext before the cursor.
+ */
+const getTextBeforeCursor = (): string => {
+  const text = getText();
+  const offset = getCursorOffset();
+  return text.slice(0, offset);
+};
+
+/**
+ * Get the full plaintext value.
+ */
+const getText = (): string => {
+  return htmlToTextFromNode(editorRef.value ?? document.createElement('div'));
+};
+
+/**
+ * Set cursor to a plaintext offset.
+ * Walks DOM nodes counting plaintext chars until the target offset, then places the cursor.
+ */
+const setCursorOffset = (targetOffset: number) => {
+  const el = editorRef.value;
+  if (!el) return;
+  
+  let remaining = targetOffset;
+  
+  const findPosition = (node: Node): { node: Node; offset: number } | null => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = (node.textContent ?? '').length;
+      if (remaining <= len) {
+        return { node, offset: remaining };
+      }
+      remaining -= len;
+      return null;
+    }
+    
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      
+      // BR = 1 char (\n)
+      if (el.tagName === 'BR') {
+        if (remaining <= 0) {
+          return { node: el.parentNode!, offset: Array.from(el.parentNode!.childNodes).indexOf(el) };
+        }
+        remaining -= 1;
+        return null;
+      }
+      
+      // Emoji element = N chars of the emoji unicode
+      const emojiAttr = el.getAttribute('data-emoji');
+      if (emojiAttr) {
+        const len = emojiAttr.length;
+        if (remaining <= 0) {
+          return { node: el.parentNode!, offset: Array.from(el.parentNode!.childNodes).indexOf(el) };
+        }
+        if (remaining <= len) {
+          // Place cursor after this emoji element
+          const parent = el.parentNode!;
+          const idx = Array.from(parent.childNodes).indexOf(el);
+          remaining = 0;
+          return { node: parent, offset: idx + 1 };
+        }
+        remaining -= len;
+        return null;
+      }
+      
+      // Recurse children
+      for (const child of el.childNodes) {
+        const result = findPosition(child);
+        if (result) return result;
+      }
+      
+      // Block elements contribute a newline
+      if (['P', 'DIV'].includes(el.tagName)) {
+        if (remaining <= 0) return null;
+        remaining -= 1; // The implicit \n
+      }
+    }
+    
+    return null;
+  };
+  
+  const pos = findPosition(el);
+  
+  if (pos) {
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.setStart(pos.node, pos.offset);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } else {
+    // Offset is past end — place cursor at end
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+};
+
+/**
+ * Replace a plaintext range [start, end) with new text.
+ * Converts to full plaintext, does the splice, then re-renders.
+ * Cursor is placed at start + replacement.length.
+ */
+const replaceRange = (start: number, end: number, replacement: string) => {
+  const text = getText();
+  const before = text.slice(0, start);
+  const after = text.slice(end);
+  const newText = before + replacement + after;
+  
+  isUpdating = true;
+  cleanupAllVideoSyncs();
+  internalHtml.value = textToHtml(newText);
+  if (editorRef.value) {
+    editorRef.value.innerHTML = internalHtml.value;
+  }
+  isUpdating = false;
+  
+  emit('update:modelValue', newText);
+  
+  // Place cursor after the replacement
+  nextTick(() => {
+    setCursorOffset(start + replacement.length);
+    syncVideoSpans();
+  });
+};
+
+/**
+ * Insert text at current cursor position.
+ */
+const insertTextAtCursor = (text: string) => {
+  const offset = getCursorOffset();
+  replaceRange(offset, offset, text);
 };
 
 /**
@@ -310,18 +494,27 @@ const handleInput = () => {
   internalHtml.value = html;
   emit('update:modelValue', text);
   
+  // Notify parent
+  emit('input');
+  
   // Sync video spans after DOM updates
   nextTick(() => syncVideoSpans());
 };
 
 /**
- * Handle keydown
+ * Handle keydown — emit to parent, only intercept submit shortcuts
  */
 const handleKeydown = (event: KeyboardEvent) => {
+  // Always emit to parent so it can handle mentions, slash commands, etc.
+  emit('keydown', event);
+  
+  // If parent called preventDefault, respect it
+  if (event.defaultPrevented) return;
+  
   // Enter to submit in single-line mode
   if (event.key === 'Enter' && props.singleLine) {
     event.preventDefault();
-    const text = htmlToText(editorRef.value?.innerHTML ?? '');
+    const text = getText();
     emit('submit', text);
     return;
   }
@@ -329,16 +522,22 @@ const handleKeydown = (event: KeyboardEvent) => {
   // Ctrl/Cmd + Enter to submit
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
-    const text = htmlToText(editorRef.value?.innerHTML ?? '');
+    const text = getText();
     emit('submit', text);
     return;
   }
 };
 
 /**
- * Handle paste - strip formatting, convert emoji
+ * Handle paste - emit to parent first, then do default emoji conversion if not prevented
  */
 const handlePaste = (event: ClipboardEvent) => {
+  // Emit to parent (for file paste interception)
+  emit('paste', event);
+  
+  // If parent already prevented default, don't do anything
+  if (event.defaultPrevented) return;
+  
   event.preventDefault();
   
   const text = event.clipboardData?.getData('text/plain') ?? '';
@@ -378,7 +577,7 @@ const handleCopy = (event: ClipboardEvent) => {
   temp.appendChild(fragment);
   
   // Convert to plaintext with fallback emojis
-  const plaintext = htmlToText(temp.innerHTML);
+  const plaintext = htmlToTextFromNode(temp);
   
   // Set clipboard data
   event.preventDefault();
@@ -430,18 +629,11 @@ const clear = () => {
   }
 };
 
-/**
- * Get current plaintext value
- */
-const getText = (): string => {
-  return htmlToText(editorRef.value?.innerHTML ?? '');
-};
-
 // Watch external value changes
 watch(() => props.modelValue, (newVal) => {
   if (isUpdating) return;
   
-  const currentText = htmlToText(editorRef.value?.innerHTML ?? '');
+  const currentText = getText();
   if (currentText === newVal) return;
   
   isUpdating = true;
@@ -498,6 +690,11 @@ onUnmounted(() => {
 // Expose methods
 defineExpose({
   insertEmoji,
+  insertTextAtCursor,
+  replaceRange,
+  getCursorOffset,
+  setCursorOffset,
+  getTextBeforeCursor,
   focus,
   blur,
   clear,
@@ -513,16 +710,16 @@ const showPlaceholder = computed(() => {
 
 <template>
   <div 
-    class="emojix-input-wrapper" 
-    :class="{ 
-      'emojix-input--focused': isFocused,
-      'emojix-input--disabled': disabled,
-      'emojix-input--single-line': singleLine,
-    }"
+    :class="[
+      unstyled ? 'emojix-input-container--unstyled' : 'emojix-input-wrapper',
+      !unstyled && isFocused && 'emojix-input--focused',
+      !unstyled && disabled && 'emojix-input--disabled',
+      !unstyled && singleLine && 'emojix-input--single-line',
+    ]"
   >
     <div
       ref="editorRef"
-      class="emojix-input"
+      :class="unstyled ? 'emojix-input--unstyled' : 'emojix-input'"
       :contenteditable="!disabled"
       role="textbox"
       :aria-placeholder="placeholder"
@@ -538,7 +735,7 @@ const showPlaceholder = computed(() => {
     
     <div 
       v-if="showPlaceholder && placeholder" 
-      class="emojix-input-placeholder"
+      :class="unstyled ? 'emojix-input-placeholder--unstyled' : 'emojix-input-placeholder'"
       @click="focus"
     >
       {{ placeholder }}
@@ -602,6 +799,37 @@ const showPlaceholder = computed(() => {
   left: 12px;
   color: var(--emojix-placeholder, #999);
   font-size: 14px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Unstyled mode — minimal container, inherits from parent */
+.emojix-input-container--unstyled {
+  position: relative;
+  width: 100%;
+}
+
+.emojix-input--unstyled {
+  width: 100%;
+  outline: none;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  padding: 0;
+  min-height: 0;
+  max-height: none;
+}
+
+.emojix-input-placeholder--unstyled {
+  padding-top: 5px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: inherit;
+  opacity: 0.5;
+  font: inherit;
   pointer-events: none;
   user-select: none;
 }
