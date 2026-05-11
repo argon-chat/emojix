@@ -2,14 +2,14 @@
   "name": "@argon-chat/emojix",
   "version": "0.3.0",
   "type": "module",
-  "main": "./dist/emojix.cjs",
-  "module": "./dist/emojix.mjs",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "import": "./dist/emojix.mjs",
+      "import": "./src/index.ts",
       "require": "./dist/emojix.cjs",
-      "types": "./dist/index.d.ts"
+      "types": "./src/index.ts"
     },
     "./style.css": "./src/themes/variables.css"
   },
