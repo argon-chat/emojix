@@ -11,7 +11,7 @@
       "require": "./dist/emojix.cjs",
       "types": "./dist/index.d.ts"
     },
-    "./style.css": "./dist/assets/emojix.css"
+    "./style.css": "./src/themes/variables.css"
   },
   "sideEffects": [
     "*.css"
