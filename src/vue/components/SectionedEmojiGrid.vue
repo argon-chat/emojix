@@ -4,7 +4,7 @@
  * Telegram-style unified scroll with sticky headers
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import type { EmojiEntry, CategoryId, CategorySection, RenderMode, Category } from '@/core';
+import type { EmojiEntry, CategoryId, CategorySection, RenderMode, Category } from '../../core';
 import { useSectionedVirtualScroll } from '../composables/useSectionedVirtualScroll';
 import EmojiSprite from './EmojiSprite.vue';
 import CategoryHeader from './CategoryHeader.vue';

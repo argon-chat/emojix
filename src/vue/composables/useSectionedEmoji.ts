@@ -6,8 +6,8 @@
  */
 
 import { computed, ref, onMounted, onUnmounted, type Ref, type ComputedRef } from 'vue';
-import type { EmojiEntry, CategoryId, CategorySection, CustomPack } from '@/core';
-import { emojiRegistry, customEmojiStore } from '@/core';
+import type { EmojiEntry, CategoryId, CategorySection, CustomPack } from '../../core';
+import { emojiRegistry, customEmojiStore } from '../../core';
 
 /** Standard emoji category order (no 'recent' or 'custom' - handled separately) */
 const STANDARD_CATEGORY_ORDER: readonly CategoryId[] = [

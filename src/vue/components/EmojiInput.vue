@@ -19,14 +19,14 @@ import {
   onUnmounted,
   nextTick,
 } from 'vue';
-import type { EmojiEntry, RenderMode } from '@/core';
+import type { EmojiEntry, RenderMode } from '../../core';
 import { 
   spriteResolver, 
   customEmojiStore, 
   codepointsToString,
   splitTextAndEmoji,
   videoSyncManager,
-} from '@/core';
+} from '../../core';
 
 const props = withDefaults(defineProps<{
   /** v-model value (plaintext with unicode emoji) */

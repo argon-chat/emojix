@@ -3,7 +3,7 @@
  * ContentTabBar - Top-level content type tabs (Emoji, GIF, etc.)
  * Shown above the search bar when multiple content tabs are configured.
  */
-import type { ContentTab } from '@/core';
+import type { ContentTab } from '../../core';
 
 const props = defineProps<{
   tabs: ContentTab[];

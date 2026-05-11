@@ -21,7 +21,7 @@
  * ```
  */
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import type { EmojiEntry, CustomEmojiInput, RenderMode } from '@/core';
+import type { EmojiEntry, CustomEmojiInput, RenderMode } from '../../core';
 import { 
   emojiRegistry, 
   customEmojiStore, 
@@ -30,7 +30,7 @@ import {
   stringToCodepoints,
   codepointsToHexcode,
   videoSyncManager,
-} from '@/core';
+} from '../../core';
 
 const props = withDefaults(defineProps<{
   /** Unicode emoji string (e.g., "😀") */

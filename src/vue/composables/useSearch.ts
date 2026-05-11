@@ -3,7 +3,7 @@
  */
 
 import { ref, watch, type Ref } from 'vue';
-import { emojiRegistry, type SearchResult } from '@/core';
+import { emojiRegistry, type SearchResult } from '../../core';
 
 export interface UseSearchOptions {
   /** Debounce delay in ms */

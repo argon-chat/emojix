@@ -5,8 +5,8 @@
  */
 
 import { ref, onMounted, onUnmounted, type Ref, shallowRef, triggerRef } from 'vue';
-import { customEmojiStore } from '@/core';
-import type { LoadedEmoji } from '@/core/registry/CustomEmojiQueue';
+import { customEmojiStore } from '../../core';
+import type { LoadedEmoji } from '../../core/registry/CustomEmojiQueue';
 
 export interface UseCustomEmojiLoaderOptions {
   /** Document IDs to preload */

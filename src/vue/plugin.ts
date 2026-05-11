@@ -4,9 +4,9 @@
  */
 
 import type { App } from 'vue';
-import type { AtlasManifest } from '@/core';
-import { atlasLoader, emojiRegistry } from '@/core';
-import type { EmojiEntry } from '@/core';
+import type { AtlasManifest } from '../core';
+import { atlasLoader, emojiRegistry } from '../core';
+import type { EmojiEntry } from '../core';
 
 // Components
 import { 

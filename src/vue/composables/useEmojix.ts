@@ -11,14 +11,14 @@ import type {
   SkinTone,
   CategoryId,
   Category
-} from '@/core';
+} from '../../core';
 import { 
   emojiRegistry, 
   customEmojiStore,
   codepointsToString,
   SKIN_TONE_CODEPOINTS,
   applySkinTone
-} from '@/core';
+} from '../../core';
 
 export interface UseEmojixOptions {
   /** Initial skin tone */

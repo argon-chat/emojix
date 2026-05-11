@@ -4,7 +4,7 @@
  * Only renders visible items for performance
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import type { EmojiEntry, RenderMode } from '@/core';
+import type { EmojiEntry, RenderMode } from '../../core';
 import { useVirtualScroll } from '../composables/useVirtualScroll';
 import EmojiSprite from './EmojiSprite.vue';
 

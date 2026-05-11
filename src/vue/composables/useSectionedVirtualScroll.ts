@@ -13,7 +13,7 @@ import {
   type Ref,
   type ComputedRef,
 } from 'vue';
-import type { CategorySection, CategoryId, VirtualRow } from '@/core';
+import type { CategorySection, CategoryId, VirtualRow } from '../../core';
 
 export interface SectionedVirtualScrollOptions {
   /** Sections to render */

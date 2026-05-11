@@ -7,9 +7,9 @@
  * Videos are synchronized via VideoSyncManager
  */
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import type { EmojiEntry, CustomEmojiInput, RenderMode } from '@/core';
-import { spriteResolver, customEmojiStore, codepointsToString, videoSyncManager } from '@/core';
-import type { LoadedEmoji } from '@/core/registry/CustomEmojiQueue';
+import type { EmojiEntry, CustomEmojiInput, RenderMode } from '../../core';
+import { spriteResolver, customEmojiStore, codepointsToString, videoSyncManager } from '../../core';
+import type { LoadedEmoji } from '../../core/registry/CustomEmojiQueue';
 
 const props = withDefaults(defineProps<{
   /** Emoji entry to render */

@@ -5,8 +5,8 @@
  * Supports extension content tabs (e.g. GIF, Stickers) via slots
  */
 import { ref, computed } from 'vue';
-import type { EmojiEntry, CategoryId, EmojiSelection, SkinTone, RenderMode, ContentTab } from '@/core';
-import { codepointsToString } from '@/core';
+import type { EmojiEntry, CategoryId, EmojiSelection, SkinTone, RenderMode, ContentTab } from '../../core';
+import { codepointsToString } from '../../core';
 import { useSearch } from '../composables/useSearch';
 import { useRecents } from '../composables/useRecents';
 import { useSectionedEmoji } from '../composables/useSectionedEmoji';

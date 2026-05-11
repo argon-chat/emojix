@@ -23,7 +23,7 @@
  */
 
 import { ref, onUnmounted } from 'vue';
-import type { EmojiEntry, RenderMode } from '@/core';
+import type { EmojiEntry, RenderMode } from '../../core';
 import { 
   spriteResolver, 
   customEmojiStore, 
@@ -33,7 +33,7 @@ import {
   splitTextAndEmoji,
   videoSyncManager,
   emojiRegistry,
-} from '@/core';
+} from '../../core';
 
 /**
  * Get emoji entry by emoji character

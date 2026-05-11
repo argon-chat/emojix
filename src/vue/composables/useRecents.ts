@@ -3,7 +3,7 @@
  */
 
 import { ref, watch, onMounted, type Ref } from 'vue';
-import type { EmojiEntry } from '@/core';
+import type { EmojiEntry } from '../../core';
 
 const STORAGE_KEY = 'emojix-recents';
 

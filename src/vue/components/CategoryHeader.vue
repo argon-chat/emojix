@@ -3,7 +3,7 @@
  * CategoryHeader - Section header for unified scroll
  * Shows category icon and name, supports sticky positioning
  */
-import type { Category } from '@/core';
+import type { Category } from '../../core';
 
 withDefaults(defineProps<{
   /** Category metadata */

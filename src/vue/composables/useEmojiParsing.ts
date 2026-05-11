@@ -13,12 +13,12 @@ import {
   splitTextAndEmoji,
   type EmojiOnlyResult,
   type TextSegment,
-} from '@/core/encoding/parseEmojiString';
+} from '../../core/encoding/parseEmojiString';
 import {
   fixNonStandardEmoji,
   normalizeEmoji,
   hasEmoji,
-} from '@/core/encoding/fixNonStandardEmoji';
+} from '../../core/encoding/fixNonStandardEmoji';
 
 export interface UseEmojiParsingOptions {
   /** Auto-fix non-standard emoji in input */
