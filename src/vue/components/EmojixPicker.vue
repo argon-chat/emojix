@@ -2,15 +2,17 @@
 /**
  * EmojixPicker - Main emoji picker component
  * Telegram-style unified scroll with categories and search
+ * Supports extension content tabs (e.g. GIF, Stickers) via slots
  */
 import { ref, computed } from 'vue';
-import type { EmojiEntry, CategoryId, EmojiSelection, SkinTone, RenderMode } from '@/core';
+import type { EmojiEntry, CategoryId, EmojiSelection, SkinTone, RenderMode, ContentTab } from '@/core';
 import { codepointsToString } from '@/core';
 import { useSearch } from '../composables/useSearch';
 import { useRecents } from '../composables/useRecents';
 import { useSectionedEmoji } from '../composables/useSectionedEmoji';
 import SearchBar from './SearchBar.vue';
 import CategoryTabs from './CategoryTabs.vue';
+import ContentTabBar from './ContentTabBar.vue';
 import SectionedEmojiGrid from './SectionedEmojiGrid.vue';
 import EmojiGrid from './EmojiGrid.vue';
 
@@ -45,6 +47,8 @@ const props = withDefaults(defineProps<{
   theme?: 'light' | 'dark' | 'auto';
   /** Render mode: atlas (sprites), native, twemoji, noto */
   renderMode?: RenderMode;
+  /** Additional content tabs (e.g. GIF, Stickers). Emoji tab is always first. */
+  contentTabs?: ContentTab[];
 }>(), {
   excludeCategories: () => [],
   width: 352,
@@ -61,12 +65,37 @@ const props = withDefaults(defineProps<{
   skinTone: 'default',
   theme: 'auto',
   renderMode: 'atlas',
+  contentTabs: () => [],
 });
 
 const emit = defineEmits<{
   select: [selection: EmojiSelection];
   skinToneChange: [skinTone: SkinTone];
+  tabChange: [tabId: string];
 }>();
+
+// Content tabs: built-in emoji + user-provided extension tabs
+const emojiTab: ContentTab = { id: 'emoji', label: 'Emoji', icon: '😀' };
+const allContentTabs = computed(() => [emojiTab, ...props.contentTabs]);
+const hasMultipleTabs = computed(() => allContentTabs.value.length > 1);
+
+// Active content tab (top-level: emoji vs gif vs ...)
+const activeContentTab = ref<string>('emoji');
+const isEmojiTab = computed(() => activeContentTab.value === 'emoji');
+
+// Current search placeholder based on active content tab
+const currentPlaceholder = computed(() => {
+  if (isEmojiTab.value) return props.searchPlaceholder;
+  const tab = props.contentTabs.find(t => t.id === activeContentTab.value);
+  return tab?.placeholder ?? props.searchPlaceholder;
+});
+
+// Handle content tab switch
+const handleContentTabSelect = (tabId: string) => {
+  activeContentTab.value = tabId;
+  query.value = '';
+  emit('tabChange', tabId);
+};
 
 // Search
 const { query, results, isSearching } = useSearch();
@@ -90,11 +119,12 @@ const { sections, totalHeight, customPacks, getEmojiSectionY } = useSectionedEmo
 // Has recent emoji
 const hasRecents = computed(() => recentIds.value.length > 0);
 
-// Grid height (minus search and tabs)
+// Grid height (minus search, tabs, content tab bar)
 const gridHeight = computed(() => {
   let h = props.height;
-  if (props.showSearch) h -= 48; // Search bar height
-  if (props.showTabs) h -= 44;  // Tabs height
+  if (hasMultipleTabs.value) h -= 36; // Content tab bar height
+  if (props.showSearch) h -= 48;     // Search bar height
+  if (props.showTabs && isEmojiTab.value) h -= 44; // Category tabs (emoji only)
   return Math.max(h, 100);
 });
 
@@ -183,60 +213,78 @@ const themeClass = computed(() => {
     :class="themeClass"
     :style="pickerStyle"
   >
+    <!-- Top-level content tabs (Emoji | GIF | ...) -->
+    <ContentTabBar
+      v-if="hasMultipleTabs"
+      :tabs="allContentTabs"
+      :active-tab="activeContentTab"
+      @select="handleContentTabSelect"
+    />
+
     <!-- Search -->
     <SearchBar
       v-if="showSearch"
       v-model="query"
-      :placeholder="searchPlaceholder"
+      :placeholder="currentPlaceholder"
       :autofocus="autofocusSearch"
     />
     
-    <!-- Search results (flat grid) -->
-    <EmojiGrid
-      v-if="isSearchMode"
-      :emojis="searchEmoji"
-      :columns="columns"
-      :emoji-size="emojiSize"
-      :gap="gap"
-      :height="gridHeight"
-      :render-mode="renderMode"
-      @select="handleSelect"
-    >
-      <template #empty>
-        <span v-if="isSearching">Searching...</span>
-        <span v-else>No emoji found for "{{ query }}"</span>
-      </template>
-    </EmojiGrid>
-    
-    <!-- Unified scroll sections (Telegram-style) -->
-    <SectionedEmojiGrid
-      v-else
-      ref="sectionedGridRef"
-      :sections="sections"
-      :total-height="totalHeight"
-      :columns="columns"
-      :emoji-size="emojiSize"
-      :gap="gap"
-      :height="gridHeight"
-      :header-height="headerHeight"
-      :render-mode="renderMode"
-      @select="handleSelect"
-      @category-change="handleCategoryChange"
-    >
-      <template #empty>
-        <span>No emoji available</span>
-      </template>
-    </SectionedEmojiGrid>
-    
-    <!-- Bottom navigation tabs: Recent | Emoji | Custom packs -->
-    <CategoryTabs
-      v-if="showTabs"
-      :active-tab="activeTab"
-      :show-recent="maxRecents > 0"
-      :has-recents="hasRecents"
-      :custom-packs="customPacks"
-      @select="handleTabClick"
-    />
+    <!-- Extension tab content (GIF, Stickers, etc.) -->
+    <template v-if="!isEmojiTab">
+      <div class="emojix-extension-pane" :style="{ height: gridHeight + 'px' }">
+        <slot name="tab-content" :tab-id="activeContentTab" :search-query="query" />
+      </div>
+    </template>
+
+    <!-- Emoji content -->
+    <template v-else>
+      <!-- Search results (flat grid) -->
+      <EmojiGrid
+        v-if="isSearchMode"
+        :emojis="searchEmoji"
+        :columns="columns"
+        :emoji-size="emojiSize"
+        :gap="gap"
+        :height="gridHeight"
+        :render-mode="renderMode"
+        @select="handleSelect"
+      >
+        <template #empty>
+          <span v-if="isSearching">Searching...</span>
+          <span v-else>No emoji found for "{{ query }}"</span>
+        </template>
+      </EmojiGrid>
+      
+      <!-- Unified scroll sections (Telegram-style) -->
+      <SectionedEmojiGrid
+        v-else
+        ref="sectionedGridRef"
+        :sections="sections"
+        :total-height="totalHeight"
+        :columns="columns"
+        :emoji-size="emojiSize"
+        :gap="gap"
+        :height="gridHeight"
+        :header-height="headerHeight"
+        :render-mode="renderMode"
+        @select="handleSelect"
+        @category-change="handleCategoryChange"
+      >
+        <template #empty>
+          <span>No emoji available</span>
+        </template>
+      </SectionedEmojiGrid>
+      
+      <!-- Bottom navigation tabs: Recent | Emoji | Custom packs -->
+      <CategoryTabs
+        v-if="showTabs"
+        :active-tab="activeTab"
+        :show-recent="maxRecents > 0"
+        :has-recents="hasRecents"
+        :custom-packs="customPacks"
+        @select="handleTabClick"
+      />
+    </template>
   </div>
 </template>
 
@@ -249,6 +297,12 @@ const themeClass = computed(() => {
   border-radius: var(--emojix-radius, 8px);
   overflow: hidden;
   font-family: var(--emojix-font, system-ui, -apple-system, sans-serif);
+}
+
+.emojix-extension-pane {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Dark theme */

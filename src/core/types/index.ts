@@ -2,3 +2,4 @@
 export * from './Emoji';
 export * from './Atlas';
 export * from './Category';
+export * from './ContentTab';

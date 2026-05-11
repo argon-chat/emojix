@@ -5,5 +5,6 @@ export { default as EmojiGrid } from './EmojiGrid.vue';
 export { default as SectionedEmojiGrid } from './SectionedEmojiGrid.vue';
 export { default as CategoryTabs } from './CategoryTabs.vue';
 export { default as CategoryHeader } from './CategoryHeader.vue';
+export { default as ContentTabBar } from './ContentTabBar.vue';
 export { default as SearchBar } from './SearchBar.vue';
 export { default as EmojiInput } from './EmojiInput.vue';
