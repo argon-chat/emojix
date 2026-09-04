@@ -29,6 +29,13 @@ export class EmojiRegistry {
   /** Search index */
   private searchIndex = new SearchIndex();
   
+  /**
+   * Entries not yet in the search trie. Building the trie for ~3800 emoji (every shortcode,
+   * keyword and name word) is only worth it once someone actually searches, so registrations are
+   * parked here until the first search() and indexed then; null once the trie is live.
+   */
+  private searchPending: EmojiEntry[] | null = [];
+  
   constructor() {
     // Initialize categories
     for (const cat of DEFAULT_CATEGORIES) {
@@ -62,8 +69,9 @@ export class EmojiRegistry {
       category.count++;
     }
     
-    // Add to search index
-    this.searchIndex.add(emoji);
+    // Add to search index (deferred until the first search)
+    if (this.searchPending) this.searchPending.push(emoji);
+    else this.searchIndex.add(emoji);
   }
   
   /**
@@ -103,7 +111,12 @@ export class EmojiRegistry {
     }
     
     // Remove from search
-    this.searchIndex.remove(emojiId);
+    if (this.searchPending) {
+      const idx = this.searchPending.findIndex(e => e.id === emojiId);
+      if (idx !== -1) this.searchPending.splice(idx, 1);
+    } else {
+      this.searchIndex.remove(emojiId);
+    }
     
     return true;
   }
@@ -145,7 +158,15 @@ export class EmojiRegistry {
    * Search emoji by query
    */
   search(query: string, limit = 50): SearchResult[] {
+    this.ensureSearchIndex();
     return this.searchIndex.search(query, limit);
+  }
+  
+  private ensureSearchIndex(): void {
+    if (!this.searchPending) return;
+    const pending = this.searchPending;
+    this.searchPending = null;
+    for (const emoji of pending) this.searchIndex.add(emoji);
   }
   
   /**
@@ -193,6 +214,7 @@ export class EmojiRegistry {
     this.byHexcode.clear();
     this.byShortcode.clear();
     this.searchIndex.clear();
+    this.searchPending = [];
     
     // Reset category counts
     for (const cat of this.categories.values()) {

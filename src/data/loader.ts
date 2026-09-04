@@ -43,7 +43,10 @@ import flagsAtlas from '../assets/atlases/flags.webp';
 import emojiData from './emoji-data.json';
 
 /**
- * Initialize emoji registry with bundled data
+ * Initialize emoji registry with bundled data.
+ *
+ * Cheap by design: atlases are registered by manifest and URL only (the browser fetches an atlas
+ * when a sprite from it is first shown) and the search trie is built on the first search.
  */
 export async function initializeEmojix(): Promise<void> {
   // Register atlases (cast to AtlasManifest since JSON imports lose literal types)

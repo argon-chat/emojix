@@ -23,32 +23,22 @@ export class AtlasLoader {
    * @param manifest Atlas manifest data
    * @param imageUrl URL to the atlas image (imported asset)
    */
-  async register(manifest: AtlasManifest, imageUrl: string): Promise<void> {
+    async register(manifest: AtlasManifest, imageUrl: string): Promise<void> {
     const atlasId = manifest.id;
-    
-    // Already loaded
+
+    // Already registered
     if (this.cache.has(atlasId)) return;
-    
-    this.setState(atlasId, { status: 'loading' });
-    
-    try {
-      const image = await this.loadImage(imageUrl);
-      
-      const loadedAtlas: LoadedAtlas = {
-        manifest,
-        image,
-        url: imageUrl,
-      };
-      
-      this.cache.set(atlasId, loadedAtlas);
-      this.setState(atlasId, { status: 'loaded', atlas: loadedAtlas });
-    } catch (error) {
-      this.setState(atlasId, { 
-        status: 'error', 
-        error: error instanceof Error ? error : new Error(String(error))
-      });
-      throw error;
-    }
+
+    // Registering used to fetch and pin every atlas image at boot. The sprites are rendered as CSS
+    // background images, so the browser loads an atlas the first time one of its sprites is shown
+    // and manages the decoded bitmap itself — only the manifest and the URL are kept here.
+    const loadedAtlas: LoadedAtlas = {
+      manifest,
+      url: imageUrl,
+    };
+
+    this.cache.set(atlasId, loadedAtlas);
+    this.setState(atlasId, { status: 'loaded', atlas: loadedAtlas });
   }
   
   /**
@@ -90,16 +80,19 @@ export class AtlasLoader {
   /**
    * Preload all registered atlases (force decode)
    */
-  async preloadAll(): Promise<void> {
-    const promises = Array.from(this.cache.values()).map(atlas => {
-      // Force decode for instant rendering later
-      if ('decode' in atlas.image) {
-        return atlas.image.decode?.();
+    async preloadAll(): Promise<void> {
+    await Promise.all(Array.from(this.cache.values()).map(async (atlas) => {
+      try {
+        if (!atlas.image) atlas.image = await this.loadImage(atlas.url);
+        // Force decode for instant rendering later
+        await atlas.image.decode?.();
+      } catch (error) {
+        this.setState(atlas.manifest.id, {
+          status: 'error',
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
       }
-      return Promise.resolve();
-    });
-    
-    await Promise.all(promises);
+    }));
   }
   
   /**
