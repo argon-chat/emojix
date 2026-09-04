@@ -50,7 +50,12 @@ export interface SpritePosition {
  */
 export interface LoadedAtlas {
   manifest: AtlasManifest;
-  image: HTMLImageElement;
+  /**
+   * Only set once preloadAll() has been asked to warm the atlas up. Sprites are CSS background
+   * images, so the browser fetches and decodes an atlas the first time one of its sprites is shown
+   * and may drop the decoded bitmap under memory pressure; nothing else needs the pixels.
+   */
+  image?: HTMLImageElement;
   /** Data URL or blob URL for the image */
   url: string;
 }
