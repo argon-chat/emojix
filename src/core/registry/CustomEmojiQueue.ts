@@ -84,6 +84,10 @@ export class CustomEmojiQueue {
       return cached;
     }
 
+    // Gave up on it already (retries exhausted): every render used to re-admit it with a fresh
+    // retry budget, a steady drip of loader requests for an emoji that no longer exists.
+    if (this.failed.has(documentId)) return null;
+
     // Check if already pending
     const existing = this.pending.get(documentId);
     if (existing) {
