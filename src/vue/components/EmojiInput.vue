@@ -20,9 +20,10 @@ import {
   nextTick,
 } from 'vue';
 import type { EmojiEntry, RenderMode } from '../../core';
-import { 
-  spriteResolver, 
-  customEmojiStore, 
+import {
+  spriteResolver,
+  customEmojiStore,
+  emojiRegistry,
   codepointsToString,
   splitTextAndEmoji,
   videoSyncManager,
@@ -127,13 +128,32 @@ const emojiToHtml = (emoji: string, entry?: EmojiEntry): string => {
     }
   }
   
-  // Fallback - render as image from Twemoji CDN
-  const codepoints = [...emoji]
-    .map(c => c.codePointAt(0)!.toString(16))
-    .filter(cp => cp !== 'fe0f') // Remove VS16
-    .join('-');
-  
-  return `<img class="emojix-inline-emoji" src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${codepoints}.png" alt="${emoji}" data-emoji="${emoji}" width="${size}" height="${size}" draggable="false" />`;
+  // Nothing to draw it with (no entry, or its atlas is not loaded yet): leave the character to
+  // the font. It used to become an <img> fetched from a public CDN per character, which put a
+  // network request behind every unknown glyph in a paste and a broken image where the CDN had
+  // nothing.
+  return escapeText(emoji);
+};
+
+const escapeText = (text: string): string =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+
+/**
+ * The registry entry for an emoji as it appears in text — with or without the VS16 the data
+ * happens to carry — so a pasted emoji is drawn from the atlas exactly like a picked one.
+ */
+const entryForEmoji = (emoji: string): EmojiEntry | undefined => {
+  const hexes = [...emoji].map(c => c.codePointAt(0)!.toString(16));
+  const noVs = hexes.filter(h => h !== 'fe0f');
+  for (const key of [hexes.join('-'), noVs.join('-'), `${noVs.join('-')}-fe0f`]) {
+    const entry = emojiRegistry.getByHexcode(key);
+    if (entry) return entry;
+  }
+  return undefined;
 };
 
 /**
@@ -199,14 +219,10 @@ const textToHtml = (text: string): string => {
   
   for (const segment of segments) {
     if (segment.type === 'emoji') {
-      html += emojiToHtml(segment.content);
+      html += emojiToHtml(segment.content, entryForEmoji(segment.content));
     } else {
       // Escape HTML and preserve whitespace
-      html += segment.content
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\n/g, '<br>');
+      html += escapeText(segment.content);
     }
   }
   

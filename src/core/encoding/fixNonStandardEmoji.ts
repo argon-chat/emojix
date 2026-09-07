@@ -9,8 +9,11 @@
  * Inspired by Telegram Web implementation.
  */
 
-// Regex to match emoji (simplified, covers most cases)
-const EMOJI_REGEX = /\p{Emoji}/gu;
+// Anything the fixes below could touch: a pictograph, or a keycap mark after a digit. Not the
+// Emoji property, which is true of every digit and would send plain numbers through the
+// character loop. No `g` flag: `test()` on a global regex keeps `lastIndex` between calls, so the
+// same text answered true and false alternately.
+const EMOJI_REGEX = /[\p{Extended_Pictographic}⃣]/u;
 
 // VS16 - Variation Selector 16 (emoji presentation)
 const VS16 = '\uFE0F';

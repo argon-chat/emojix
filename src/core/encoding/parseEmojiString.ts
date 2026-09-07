@@ -20,6 +20,12 @@ import { fixNonStandardEmoji } from './fixNonStandardEmoji';
  * - Keycap sequences (#️⃣)
  * - Flag sequences (🇺🇸)
  * - Emoji with VS16 (❤️)
+ *
+ * Built on Extended_Pictographic and Emoji_Presentation, not on the Emoji property: Unicode
+ * marks every digit, `#` and `*` as Emoji (they can start a keycap), so a pattern on `\p{Emoji}`
+ * took "12345" for five emoji — every pasted digit became an image, and "123" was an emoji-only
+ * message drawn three times larger. A bare digit is text; it is an emoji only inside a keycap
+ * sequence. Likewise ©, ® and ™ are pictographs that count only with a VS16 or inside a ZWJ join.
  */
 const EMOJI_REGEX = new RegExp(
   [
@@ -29,17 +35,13 @@ const EMOJI_REGEX = new RegExp(
     '\u{1F3F4}[\u{E0060}-\u{E007F}]+\u{E007F}',
     // Keycap sequences: digit/symbol + VS16 + combining enclosing keycap
     '[\u{0023}\u{002A}\u{0030}-\u{0039}]\uFE0F?\u20E3',
-    // ZWJ sequences - emoji followed by ZWJ followed by more emoji
-    '(?:' +
-      '[\\p{Emoji}]' +
-      '[\u{1F3FB}-\u{1F3FF}]?' + // Optional skin tone
-      '\uFE0F?' + // Optional VS16
-      '(?:\u200D[\\p{Emoji}][\u{1F3FB}-\u{1F3FF}]?\uFE0F?)*' +
-    ')',
-    // Single emoji with optional skin tone and VS16
-    '[\\p{Emoji_Presentation}][\u{1F3FB}-\u{1F3FF}]?\uFE0F?',
-    // Emoji with VS16 presentation
-    '[\\p{Emoji}]\uFE0F',
+    // ZWJ sequences: pictographs joined by ZWJ, at least one join
+    '\\p{Extended_Pictographic}[\u{1F3FB}-\u{1F3FF}]?\uFE0F?' +
+      '(?:\u200D\\p{Extended_Pictographic}[\u{1F3FB}-\u{1F3FF}]?\uFE0F?)+',
+    // A character that is emoji by default, with optional skin tone and VS16
+    '\\p{Emoji_Presentation}[\u{1F3FB}-\u{1F3FF}]?\uFE0F?',
+    // A text-by-default pictograph made emoji by VS16 (\u2764\uFE0F \u263A\uFE0F \u00A9\uFE0F)
+    '\\p{Extended_Pictographic}\uFE0F',
   ].join('|'),
   'gu'
 );
