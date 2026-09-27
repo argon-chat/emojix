@@ -26,9 +26,8 @@
     "build:types": "vue-tsc -p tsconfig.build.json",
     "typecheck": "vue-tsc --noEmit",
     "preview": "vite preview",
-    "generate:atlas": "bun run scripts/generate-atlas.ts",
-    "generate:data": "bun run scripts/generate-data.ts",
-    "generate": "bun run generate:atlas && bun run generate:data"
+    "generate": "bun run scripts/build-atlases.ts",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "vue": "^3.4.0"

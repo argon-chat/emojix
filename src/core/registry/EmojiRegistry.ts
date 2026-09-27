@@ -5,6 +5,7 @@
 
 import type { EmojiEntry, CategoryId, Category } from '../types';
 import { DEFAULT_CATEGORIES } from '../types';
+import { unifiedFromText, unifiedHexcode } from '../encoding/CodepointUtils';
 import { SearchIndex, type SearchResult } from './SearchIndex';
 
 /**
@@ -16,7 +17,19 @@ export class EmojiRegistry {
   
   /** Index: hexcode -> entry */
   private byHexcode = new Map<string, EmojiEntry>();
-  
+
+  /**
+   * Index: unifiedHexcode() -> entry, listed and hidden alike. What text and hexcodes are
+   * matched against, so "❤" finds the entry filed as "2764-fe0f" and "1⃣" the one for "1️⃣".
+   */
+  private byUnified = new Map<string, EmojiEntry>();
+
+  /**
+   * Drawn but not listed: skin-tone variants and components (🏽 on its own). Found by id,
+   * hexcode and text; left out of categories, shortcodes, search, size and getAll().
+   */
+  private hidden = new Map<string, EmojiEntry>();
+
   /** Index: shortcode -> entry */
   private byShortcode = new Map<string, EmojiEntry>();
   
@@ -53,6 +66,7 @@ export class EmojiRegistry {
     
     // Add to secondary indices
     this.byHexcode.set(emoji.hexcode, emoji);
+    this.byUnified.set(unifiedHexcode(emoji.hexcode), emoji);
     this.byShortcode.set(emoji.shortcode.toLowerCase(), emoji);
     
     // Add to category
@@ -82,7 +96,13 @@ export class EmojiRegistry {
       this.register(emoji);
     }
   }
-  
+
+  /** Register an emoji that is drawn but not listed (a skin-tone variant, a component). */
+  registerHidden(emoji: EmojiEntry): void {
+    this.hidden.set(emoji.id, emoji);
+    this.byUnified.set(unifiedHexcode(emoji.hexcode), emoji);
+  }
+
   /**
    * Unregister an emoji
    */
@@ -93,6 +113,7 @@ export class EmojiRegistry {
     // Remove from all indices
     this.byId.delete(emojiId);
     this.byHexcode.delete(emoji.hexcode);
+    if (this.byUnified.get(unifiedHexcode(emoji.hexcode)) === emoji) this.byUnified.delete(unifiedHexcode(emoji.hexcode));
     this.byShortcode.delete(emoji.shortcode.toLowerCase());
     
     // Remove from category
@@ -125,14 +146,22 @@ export class EmojiRegistry {
    * Get emoji by ID
    */
   getById(id: string): EmojiEntry | undefined {
-    return this.byId.get(id);
+    return this.byId.get(id) ?? this.hidden.get(id) ?? this.byUnified.get(unifiedHexcode(id));
   }
-  
+
   /**
-   * Get emoji by hexcode
+   * Get emoji by hexcode, with or without its variation selectors
    */
   getByHexcode(hexcode: string): EmojiEntry | undefined {
-    return this.byHexcode.get(hexcode.toLowerCase());
+    const lower = hexcode.toLowerCase();
+    return this.byHexcode.get(lower) ?? this.hidden.get(lower) ?? this.byUnified.get(unifiedHexcode(lower));
+  }
+
+  /**
+   * The entry for one emoji as it appears in text ("👋🏽", "❤", "1️⃣"), listed or hidden.
+   */
+  getByText(text: string): EmojiEntry | undefined {
+    return text ? this.byUnified.get(unifiedFromText(text)) : undefined;
   }
   
   /**
@@ -212,6 +241,8 @@ export class EmojiRegistry {
   clear(): void {
     this.byId.clear();
     this.byHexcode.clear();
+    this.byUnified.clear();
+    this.hidden.clear();
     this.byShortcode.clear();
     this.searchIndex.clear();
     this.searchPending = [];

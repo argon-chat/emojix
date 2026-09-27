@@ -4,7 +4,7 @@ High-performance emoji picker for Vue 3 with atlas-based sprite rendering, custo
 
 ## Features
 
-- **🚀 High Performance** — Virtual scrolling, CSS sprite atlases (9 atlases, 1221 emoji), minimal DOM operations
+- **🚀 High Performance** — Virtual scrolling, CSS sprite atlases of Apple emoji art (14 atlases: 1903 emoji of emojibase 17 plus 1875 skin-tone variants, see `src/assets/atlases/README.md`), minimal DOM operations
 - **🎬 Animated Emoji** — WebM/MP4/GIF support with synchronized playback via shared canvas
 - **🎨 Themeable** — Tailwind CSS v4 integration, CSS variables, light/dark/auto modes
 - **🔧 Custom Emoji** — Runtime registration API with PUA (Private Use Area) mapping

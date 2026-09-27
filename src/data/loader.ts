@@ -1,114 +1,76 @@
 /**
- * Auto-generated emoji data loader
- * Generated at: 2026-04-08T01:50:42.716Z
- */
-
-import type { EmojiEntry, AtlasRef } from '../core/types/Emoji';
-import type { CategoryId } from '../core/types/Category';
-import { emojiRegistry } from '../core/registry/EmojiRegistry';
-import { atlasLoader } from '../core/atlas/AtlasLoader';
-
-interface CompactEmoji {
-  i: string;
-  c: number[];
-  s: string;
-  g: CategoryId;
-  k: string[];
-  n: string;
-  t?: boolean;
-}
-
-// Import atlas manifests and images
-
-import smileysManifest from '../assets/atlases/smileys.json';
-import smileysAtlas from '../assets/atlases/smileys.webp';
-import peopleManifest from '../assets/atlases/people.json';
-import peopleAtlas from '../assets/atlases/people.webp';
-import animalsManifest from '../assets/atlases/animals.json';
-import animalsAtlas from '../assets/atlases/animals.webp';
-import foodManifest from '../assets/atlases/food.json';
-import foodAtlas from '../assets/atlases/food.webp';
-import travelManifest from '../assets/atlases/travel.json';
-import travelAtlas from '../assets/atlases/travel.webp';
-import activitiesManifest from '../assets/atlases/activities.json';
-import activitiesAtlas from '../assets/atlases/activities.webp';
-import objectsManifest from '../assets/atlases/objects.json';
-import objectsAtlas from '../assets/atlases/objects.webp';
-import symbolsManifest from '../assets/atlases/symbols.json';
-import symbolsAtlas from '../assets/atlases/symbols.webp';
-import flagsManifest from '../assets/atlases/flags.json';
-import flagsAtlas from '../assets/atlases/flags.webp';
-
-// Import emoji data
-import emojiData from './emoji-data.json';
-
-/**
- * Initialize emoji registry with bundled data.
+ * Registers the bundled emoji: atlases (scripts/build-atlases.ts writes them and atlases.ts) and
+ * the emoji data.
  *
  * Cheap by design: atlases are registered by manifest and URL only (the browser fetches an atlas
  * when a sprite from it is first shown) and the search trie is built on the first search.
  */
+
+import type { EmojiEntry, AtlasRef } from '../core/types/Emoji';
+import { emojiRegistry } from '../core/registry/EmojiRegistry';
+import { atlasLoader } from '../core/atlas/AtlasLoader';
+import { hexcodeToCodepoints, unifiedHexcode } from '../core/encoding/CodepointUtils';
+import type { CompactEmoji } from './compact';
+import { BUNDLED_ATLASES } from './atlases';
+import emojiData from './emoji-data.json';
+
+const TONE_NAMES: Record<string, string> = {
+  '1f3fb': 'light skin tone',
+  '1f3fc': 'medium-light skin tone',
+  '1f3fd': 'medium skin tone',
+  '1f3fe': 'medium-dark skin tone',
+  '1f3ff': 'dark skin tone',
+};
+
+/** "waving hand: medium skin tone", "people holding hands: light skin tone, dark skin tone". */
+function variantName(base: string, hexcode: string): string {
+  const tones = [...new Set(hexcode.split('-').filter((h) => h in TONE_NAMES))].map((h) => TONE_NAMES[h]);
+  return tones.length ? `${base}: ${tones.join(', ')}` : base;
+}
+
+let initialized = false;
+
+/** Initialize the emoji registry with the bundled data. Safe to call more than once. */
 export async function initializeEmojix(): Promise<void> {
-  // Register atlases (cast to AtlasManifest since JSON imports lose literal types)
-  await atlasLoader.register(smileysManifest as unknown as import('../core/types/Atlas').AtlasManifest, smileysAtlas);
-  await atlasLoader.register(peopleManifest as unknown as import('../core/types/Atlas').AtlasManifest, peopleAtlas);
-  await atlasLoader.register(animalsManifest as unknown as import('../core/types/Atlas').AtlasManifest, animalsAtlas);
-  await atlasLoader.register(foodManifest as unknown as import('../core/types/Atlas').AtlasManifest, foodAtlas);
-  await atlasLoader.register(travelManifest as unknown as import('../core/types/Atlas').AtlasManifest, travelAtlas);
-  await atlasLoader.register(activitiesManifest as unknown as import('../core/types/Atlas').AtlasManifest, activitiesAtlas);
-  await atlasLoader.register(objectsManifest as unknown as import('../core/types/Atlas').AtlasManifest, objectsAtlas);
-  await atlasLoader.register(symbolsManifest as unknown as import('../core/types/Atlas').AtlasManifest, symbolsAtlas);
-  await atlasLoader.register(flagsManifest as unknown as import('../core/types/Atlas').AtlasManifest, flagsAtlas);
-  
-  // Register emoji
-  const entries: EmojiEntry[] = (emojiData as CompactEmoji[]).map((e) => {
-    // Find atlas ref
-    const atlasRef: AtlasRef = findAtlasRef(e.i, e.g);
-    
-    return {
+  if (initialized) return;
+  initialized = true;
+
+  const refs = new Map<string, AtlasRef>();
+  for (const { manifest, url } of BUNDLED_ATLASES) {
+    void atlasLoader.register(manifest, url);
+    for (const [key, { col, row }] of Object.entries(manifest.sprites)) {
+      refs.set(key, { atlasId: manifest.id, x: col * manifest.spriteSize, y: row * manifest.spriteSize, size: manifest.spriteSize });
+    }
+  }
+  // The build lists only emoji with a sprite; this never shows unless the data and atlases disagree.
+  const refOf = (hexcode: string): AtlasRef => refs.get(unifiedHexcode(hexcode)) ?? { atlasId: '', x: 0, y: 0, size: 0 };
+
+  for (const e of emojiData as CompactEmoji[]) {
+    const entry: EmojiEntry = {
       id: e.i,
-      codepoints: e.c,
+      codepoints: hexcodeToCodepoints(e.i),
       hexcode: e.i,
       shortcode: e.s,
       category: e.g,
       keywords: e.k,
       name: e.n,
-      atlasRef,
+      atlasRef: refOf(e.i),
       hasSkinTones: e.t ?? false,
     };
-  });
-  
-  emojiRegistry.registerBulk(entries);
-}
+    if (e.h) emojiRegistry.registerHidden(entry);
+    else emojiRegistry.register(entry);
 
-function findAtlasRef(hexcode: string, category: CategoryId): AtlasRef {
-  // Get manifest for category
-  const manifests: Record<string, any> = {
-    'smileys': smileysManifest,
-    'people': peopleManifest,
-    'animals': animalsManifest,
-    'food': foodManifest,
-    'travel': travelManifest,
-    'activities': activitiesManifest,
-    'objects': objectsManifest,
-    'symbols': symbolsManifest,
-    'flags': flagsManifest
-  };
-  
-  const manifest = manifests[category];
-  if (!manifest) {
-    return { atlasId: category, x: 0, y: 0, size: 64 };
+    for (const [index, hexcode] of (e.v ?? []).entries()) {
+      emojiRegistry.registerHidden({
+        id: hexcode,
+        codepoints: hexcodeToCodepoints(hexcode),
+        hexcode,
+        shortcode: `${e.s}_tone${index + 1}`,
+        category: e.g,
+        keywords: [],
+        name: variantName(e.n, hexcode),
+        atlasRef: refOf(hexcode),
+      });
+    }
   }
-  
-  const sprite = manifest.sprites[hexcode];
-  if (!sprite) {
-    return { atlasId: category, x: 0, y: 0, size: manifest.spriteSize };
-  }
-  
-  return {
-    atlasId: manifest.id,
-    x: sprite.col * manifest.spriteSize,
-    y: sprite.row * manifest.spriteSize,
-    size: manifest.spriteSize,
-  };
 }

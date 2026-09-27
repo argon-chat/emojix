@@ -49,6 +49,32 @@ export function codepointsToHexcode(codepoints: number[]): string {
 }
 
 /**
+ * The key a sprite is filed under: lower-case codepoints joined with `-`, variation selectors
+ * dropped ("2764-FE0F" and "2764" are one emoji; "0031-FE0F-20E3" is "0031-20e3"). The same rule
+ * names the art files (iamcal's emoji-data without `-fe0f`, as Telegram Web keeps them).
+ */
+export function unifiedHexcode(hexcode: string): string {
+  return hexcode
+    .toLowerCase()
+    .split(/[-\s]/)
+    .filter((h) => h && h !== 'fe0f' && h !== 'fe0e')
+    .map((h) => h.padStart(4, '0'))
+    .join('-');
+}
+
+/** unifiedHexcode() of an emoji as typed. */
+export function unifiedFromText(text: string): string {
+  let out = '';
+  for (const char of text) {
+    const cp = char.codePointAt(0)!;
+    if (cp === VS16 || cp === VS15) continue;
+    const hex = cp.toString(16).padStart(4, '0');
+    out += out ? `-${hex}` : hex;
+  }
+  return out;
+}
+
+/**
  * Parse hexcode string to codepoints array
  */
 export function hexcodeToCodepoints(hexcode: string): number[] {

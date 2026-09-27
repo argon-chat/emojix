@@ -8,7 +8,7 @@
  */
 
 import { describe, test, expect } from "vitest";
-import { splitTextAndEmoji, extractEmojis, isEmojiOnly } from "../src/core/encoding/parseEmojiString";
+import { splitTextAndEmoji, extractEmojis, isEmojiOnly, tokenizeEmoji } from "../src/core/encoding/parseEmojiString";
 import { fixNonStandardEmoji, hasEmoji } from "../src/core/encoding/fixNonStandardEmoji";
 
 const emojisOf = (text: string) =>
@@ -93,5 +93,14 @@ describe("normalisation", () => {
 
   test("a heart without VS16 gets one", () => {
     expect(fixNonStandardEmoji("I ❤ you")).toBe("I ❤️ you");
+  });
+});
+
+describe("tokenizeEmoji", () => {
+  test("cuts the text as it is: the pieces join back into it, nothing normalised", () => {
+    const text = "1⃣ then 🏳‍🌈 and ❤️ 12 ©";
+    const pieces = tokenizeEmoji(text);
+    expect(pieces.map((s) => s.content).join("")).toBe(text);
+    expect(pieces.filter((s) => s.type === "emoji").map((s) => s.content)).toEqual(["1⃣", "🏳‍🌈", "❤️"]);
   });
 });

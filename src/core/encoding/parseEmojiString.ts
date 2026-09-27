@@ -218,40 +218,23 @@ export interface TextSegment {
 
 export function splitTextAndEmoji(text: string): TextSegment[] {
   if (!text) return [];
-  
-  const normalized = fixNonStandardEmoji(text);
+  return tokenizeEmoji(fixNonStandardEmoji(text));
+}
+
+/**
+ * splitTextAndEmoji() over the text as it is, without normalising it first: the segments join
+ * back into exactly `text`, so what is drawn is what gets selected and copied, and offsets hold.
+ */
+export function tokenizeEmoji(text: string): TextSegment[] {
+  if (!text) return [];
   const segments: TextSegment[] = [];
   let lastIndex = 0;
-  
-  // Reset regex
-  EMOJI_REGEX.lastIndex = 0;
-  
-  let match;
-  while ((match = EMOJI_REGEX.exec(normalized)) !== null) {
-    // Add text before this emoji
-    if (match.index > lastIndex) {
-      segments.push({
-        type: 'text',
-        content: normalized.slice(lastIndex, match.index),
-      });
-    }
-    
-    // Add emoji
-    segments.push({
-      type: 'emoji',
-      content: match[0],
-    });
-    
-    lastIndex = match.index + match[0].length;
+  for (const match of text.matchAll(EMOJI_REGEX)) {
+    const at = match.index ?? 0;
+    if (at > lastIndex) segments.push({ type: 'text', content: text.slice(lastIndex, at) });
+    segments.push({ type: 'emoji', content: match[0] });
+    lastIndex = at + match[0].length;
   }
-  
-  // Add remaining text
-  if (lastIndex < normalized.length) {
-    segments.push({
-      type: 'text',
-      content: normalized.slice(lastIndex),
-    });
-  }
-  
+  if (lastIndex < text.length) segments.push({ type: 'text', content: text.slice(lastIndex) });
   return segments;
 }
