@@ -16,6 +16,21 @@ export { emojixPlugin } from './themes';
 // Data exports
 export { initializeEmojix } from './data/loader';
 
+// Suggestions while typing: keywords, shortcodes, emoticons
+export type { KeywordIndexData, KeywordMatch, ShortcodeMatch, Emoticon } from './core/suggest/types';
+export {
+  SUGGEST_LOCALES,
+  normalizeQuery,
+  resolveSuggestLocales,
+  loadKeywordIndex,
+  KeywordIndex,
+  matchShortcodes,
+  EMOTICONS,
+  emoticonBefore,
+  shortcodeExact,
+  stem,
+} from './core/suggest';
+
 // Convenience re-exports
 export { 
   EmojixPicker, 

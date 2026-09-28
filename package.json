@@ -26,7 +26,9 @@
     "build:types": "vue-tsc -p tsconfig.build.json",
     "typecheck": "vue-tsc --noEmit",
     "preview": "vite preview",
-    "generate": "bun run scripts/build-atlases.ts",
+    "generate": "bun run generate:atlases && bun run generate:keywords",
+    "generate:atlases": "bun run scripts/build-atlases.ts",
+    "generate:keywords": "bun run scripts/build-keywords.ts",
     "test": "vitest run"
   },
   "peerDependencies": {
