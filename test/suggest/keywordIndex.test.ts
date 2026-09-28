@@ -103,6 +103,16 @@ describe("matchExact", () => {
     expect(fire.indexOf("2764-fe0f-200d-1f525")).toBeGreaterThan(fire.indexOf("1f525"));
   });
 
+  test("a word of the label beats a tag; then the shorter label; then the emoji with the key as shortcode", () => {
+    const heart = en.matchExact("heart").map((m) => m.hexcode);
+    expect(heart[0]).toBe("2764");
+    // Tagged "heart" only: after every emoji with "heart" in its label.
+    for (const tagged of ["1f3e0", "1f48f", "1fa7a"]) expect(heart.indexOf(tagged)).toBeGreaterThan(heart.indexOf("1f494"));
+    expect(en.matchExact("thumbs").map((m) => m.hexcode).slice(0, 2)).toEqual(["1f44d", "1f44e"]);
+    const thumb = en.matchExact("thumb").map((m) => m.hexcode);
+    expect(thumb.indexOf("1f44d")).toBeLessThan(thumb.indexOf("1f44e"));
+  });
+
   test("then the stem", () => {
     const matches = ru.matchExact("котики");
     expect(find(matches, "1f9ad")).toMatchObject({ kind: "stem", key: "котик" });

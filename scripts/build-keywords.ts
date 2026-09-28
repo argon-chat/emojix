@@ -40,10 +40,13 @@ const EXTRA_EMOTICONS: [string, string][] = [
 /** Emoticons that are ordinary text too often: "item 8)", "Plan D:". */
 const TEXT_LIKE_EMOTICON = /^(?:\d\)|[A-Z]:)$/;
 
-/** How strongly a key names an emoji, strongest first: hexcodes of a key are listed in this order. */
+/**
+ * How strongly a key names an emoji, strongest first: hexcodes of a key are listed in this order.
+ * A word of the label beats a whole tag: CLDR tags are broad ("heart" tags 🏠, 💏 and 🩺).
+ */
 const LABEL = 0;
-const TAG = 1;
-const LABEL_WORD = 2;
+const LABEL_WORD = 1;
+const TAG = 2;
 const TAG_WORD = 3;
 
 interface EmojibaseEntry {
@@ -95,15 +98,55 @@ function keysOf(entry: EmojibaseEntry): [key: string, strength: number][] {
   return keys.filter(([key]) => hasWordCharacter(key));
 }
 
-/** Entries sorted by key; each key's hexcodes strongest first, then in emoji order. */
-function sorted(index: Index, order: Map<string, number>): Entries {
+const wordCount = (text: string) => normalizeQuery(text).split(/[\s_-]+/).filter(hasWordCharacter).length;
+
+interface Ranking {
+  /** Emoji order. */
+  order: Map<string, number>;
+  /** Words in each emoji's label, in this locale. */
+  labelWords: Map<string, number>;
+  /** "code hexcode" of every shortcode. */
+  shortcodes: Set<string>;
+}
+
+/**
+ * Entries sorted by key. Each key's hexcodes: strongest first; within a strength, shorter labels
+ * first (the key is more central to "thumbs up" than to "hand with index finger and thumb
+ * crossed"), then the one whose shortcode is the key (":heart:" is ❤️, not 💖), then emoji order.
+ */
+function sorted(index: Index, { order, labelWords, shortcodes }: Ranking): Entries {
   const rank = (hexcode: string) => order.get(hexcode) ?? Number.MAX_SAFE_INTEGER;
+  const words = (hexcode: string) => labelWords.get(hexcode) ?? Number.MAX_SAFE_INTEGER;
   return [...index]
-    .map(([key, hexcodes]): [string, string[]] => [
-      key,
-      [...hexcodes].sort(([a, x], [b, y]) => x - y || rank(a) - rank(b)).map(([hexcode]) => hexcode),
-    ])
+    .map(([key, hexcodes]): [string, string[]] => {
+      const named = (hexcode: string) => (shortcodes.has(`${key} ${hexcode}`) ? 0 : 1);
+      const list = [...hexcodes]
+        .sort(([a, x], [b, y]) => x - y || words(a) - words(b) || named(a) - named(b) || rank(a) - rank(b))
+        .map(([hexcode]) => hexcode);
+      return [key, list];
+    })
     .sort(byKey);
+}
+
+/** Every (code, hexcode) of SHORTCODE_SOURCES for listed emoji, sorted by code. */
+async function shortcodesOf(listed: Set<string>): Promise<[string, string][]> {
+  const codes: [string, string][] = [];
+  const seen = new Set<string>();
+  for (const source of SHORTCODE_SOURCES) {
+    const map = await readJson<Record<string, string | string[]>>(join(EMOJIBASE, 'en/shortcodes', `${source}.json`));
+    for (const [hex, value] of Object.entries(map)) {
+      const hexcode = hex.toLowerCase();
+      if (!listed.has(hexcode)) continue;
+      for (const raw of [value].flat()) {
+        const code = raw.toLowerCase();
+        if (!/^[a-z0-9_+-]+$/.test(code) || seen.has(`${code} ${hexcode}`)) continue;
+        seen.add(`${code} ${hexcode}`);
+        codes.push([code, hexcode]);
+      }
+    }
+  }
+  // Stable: a code with two emoji keeps the source priority.
+  return codes.sort(byKey);
 }
 
 /** Adds a hexcode to a key, keeping its strongest strength. */
@@ -126,6 +169,8 @@ async function main() {
   const listed = new Set(emojiData.filter((e) => !e.h).map((e) => e.i));
   const english = await readJson<EmojibaseEntry[]>(join(EMOJIBASE, 'en/data.json'));
   const order = new Map(english.map((e) => [e.hexcode.toLowerCase(), e.order ?? Number.MAX_SAFE_INTEGER]));
+  const codes = await shortcodesOf(listed);
+  const shortcodeSet = new Set(codes.map(([code, hexcode]) => `${code} ${hexcode}`));
 
   await mkdir(KEYWORDS_DIR, { recursive: true });
   for (const file of await readdir(KEYWORDS_DIR)) {
@@ -136,9 +181,11 @@ async function main() {
   for (const locale of await locales()) {
     const entries = await readJson<EmojibaseEntry[]>(join(EMOJIBASE, locale, 'data.json'));
     const keys: Index = new Map();
+    const labelWords = new Map<string, number>();
     for (const entry of entries) {
       const hexcode = entry.hexcode.toLowerCase();
       if (!listed.has(hexcode)) continue;
+      labelWords.set(hexcode, wordCount(entry.label ?? ''));
       for (const [key, strength] of keysOf(entry)) add(keys, key, hexcode, strength);
     }
 
@@ -150,30 +197,14 @@ async function main() {
       }
     }
 
-    const data: KeywordIndexData = { locale, version: 1, keys: sorted(keys, order), stems: sorted(stems, order) };
+    const ranking: Ranking = { order, labelWords, shortcodes: shortcodeSet };
+    const data: KeywordIndexData = { locale, version: 1, keys: sorted(keys, ranking), stems: sorted(stems, ranking) };
     const size = await write(join(KEYWORDS_DIR, `${locale}.json`), data);
     console.log(
       `${locale.padEnd(8)}${String(keys.size).padStart(6)}${String(stems.size).padStart(7)}${kb(size.raw).padStart(10)}${kb(size.gzip).padStart(9)}`,
     );
   }
 
-  const codes: [string, string][] = [];
-  const seenCodes = new Set<string>();
-  for (const source of SHORTCODE_SOURCES) {
-    const map = await readJson<Record<string, string | string[]>>(join(EMOJIBASE, 'en/shortcodes', `${source}.json`));
-    for (const [hex, value] of Object.entries(map)) {
-      const hexcode = hex.toLowerCase();
-      if (!listed.has(hexcode)) continue;
-      for (const raw of [value].flat()) {
-        const code = raw.toLowerCase();
-        if (!/^[a-z0-9_+-]+$/.test(code) || seenCodes.has(`${code} ${hexcode}`)) continue;
-        seenCodes.add(`${code} ${hexcode}`);
-        codes.push([code, hexcode]);
-      }
-    }
-  }
-  // Stable: a code with two emoji keeps the source priority.
-  codes.sort(byKey);
   const shortcodes: ShortcodeData = { version: 1, codes };
   const shortcodeSize = await write(join(DATA_DIR, 'shortcodes.json'), shortcodes);
   console.log(`\nshortcodes.json: ${codes.length} codes, ${kb(shortcodeSize.raw)} (${kb(shortcodeSize.gzip)} gzip)`);
