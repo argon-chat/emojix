@@ -2,7 +2,10 @@
 export interface KeywordIndexData {
   locale: string;
   version: 1;
-  /** Normalised keys (labels, tags and their words), sorted by code unit; hexcodes in emoji order. */
+  /**
+   * Normalised keys (labels, tags and their words), sorted by code unit. Hexcodes: those whose
+   * label is the key, then tag, then a word of the label, then of a tag; each group in emoji order.
+   */
   keys: [key: string, hexcodes: string[]][];
   /** The same keyed by their stem, sorted likewise; empty for locales without a stemmer. */
   stems: [stem: string, hexcodes: string[]][];

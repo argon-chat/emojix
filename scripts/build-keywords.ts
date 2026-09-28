@@ -9,7 +9,8 @@
  * Output, checked in (labels and keywords are CLDR data: see src/data/keywords/NOTICE):
  *   src/data/keywords/{locale}.json   KeywordIndexData, one per emojibase locale
  *   src/data/shortcodes.json          ShortcodeData: the emojibase, GitHub and CLDR shortcodes
- *   src/data/emoticons.json           EmoticonData: emojibase's emoticons plus EXTRA_EMOTICONS
+ *   src/data/emoticons.json           EmoticonData: emojibase's emoticons plus EXTRA_EMOTICONS, less
+ *                                     TEXT_LIKE_EMOTICON
  */
 
 import { existsSync } from 'fs';
@@ -33,8 +34,17 @@ const EXTRA_EMOTICONS: [string, string][] = [
   [':-)', '1F642'], [':-(', '2639'], [':(', '2639'], [":'(", '1F622'], [':-D', '1F604'], [':-P', '1F61B'],
   [';-)', '1F609'], ['<3', '2764'], ['</3', '1F494'], [':-*', '1F618'], [':-|', '1F610'], [':|', '1F610'],
   [':-/', '1F615'], [':/', '1F615'], [':-O', '1F62E'], [':O', '1F62E'], [':o', '1F62E'], ['-_-', '1F611'],
-  ['^_^', '1F60A'], ['^^', '1F60A'], ['>:(', '1F620'], ['B-)', '1F60E'], ['8)', '1F60E'],
+  ['^_^', '1F60A'], ['^^', '1F60A'], ['>:(', '1F620'], ['B-)', '1F60E'],
 ];
+
+/** Emoticons that are ordinary text too often: "item 8)", "Plan D:". */
+const TEXT_LIKE_EMOTICON = /^(?:\d\)|[A-Z]:)$/;
+
+/** How strongly a key names an emoji, strongest first: hexcodes of a key are listed in this order. */
+const LABEL = 0;
+const TAG = 1;
+const LABEL_WORD = 2;
+const TAG_WORD = 3;
 
 interface EmojibaseEntry {
   hexcode: string;
@@ -45,6 +55,8 @@ interface EmojibaseEntry {
 }
 
 type Entries = [string, string[]][];
+/** key → hexcode → strength */
+type Index = Map<string, Map<string, number>>;
 
 const byKey = <T extends [string, ...unknown[]]>(a: T, b: T) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
 const hasWordCharacter = (key: string) => /[\p{L}\p{N}]/u.test(key);
@@ -62,35 +74,43 @@ async function write(path: string, data: unknown): Promise<{ raw: number; gzip: 
 
 const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} KB`;
 
-/** Keys of one emoji: its label, its tags, and every word of those that has more than one. */
-function keysOf(entry: EmojibaseEntry): string[] {
-  const keys: string[] = [];
-  for (const text of [entry.label, ...(entry.tags ?? [])]) {
+/** Keys of one emoji with their strength: its label, its tags, and every word of those that has more than one. */
+function keysOf(entry: EmojibaseEntry): [key: string, strength: number][] {
+  const keys: [string, number][] = [];
+  const texts: [string | undefined, number, number][] = [
+    [entry.label, LABEL, LABEL_WORD],
+    ...(entry.tags ?? []).map((tag): [string, number, number] => [tag, TAG, TAG_WORD]),
+  ];
+  for (const [text, whole, word] of texts) {
     if (!text) continue;
     const key = normalizeQuery(text);
-    keys.push(key);
+    keys.push([key, whole]);
     const words = key.split(/[\s_-]+/);
     if (words.length < 2) continue;
-    for (const word of words) {
-      const trimmed = trimPunctuation(word);
-      if ([...trimmed].length >= 2) keys.push(trimmed);
+    for (const part of words) {
+      const trimmed = trimPunctuation(part);
+      if ([...trimmed].length >= 2) keys.push([trimmed, word]);
     }
   }
-  return keys.filter(hasWordCharacter);
+  return keys.filter(([key]) => hasWordCharacter(key));
 }
 
-/** Map entries sorted by key, each hexcode list deduplicated and in emoji order. */
-function sorted(map: Map<string, Set<string>>, order: Map<string, number>): Entries {
+/** Entries sorted by key; each key's hexcodes strongest first, then in emoji order. */
+function sorted(index: Index, order: Map<string, number>): Entries {
   const rank = (hexcode: string) => order.get(hexcode) ?? Number.MAX_SAFE_INTEGER;
-  return [...map]
-    .map(([key, hexcodes]): [string, string[]] => [key, [...hexcodes].sort((a, b) => rank(a) - rank(b))])
+  return [...index]
+    .map(([key, hexcodes]): [string, string[]] => [
+      key,
+      [...hexcodes].sort(([a, x], [b, y]) => x - y || rank(a) - rank(b)).map(([hexcode]) => hexcode),
+    ])
     .sort(byKey);
 }
 
-function add(map: Map<string, Set<string>>, key: string, hexcodes: Iterable<string>) {
-  let set = map.get(key);
-  if (!set) map.set(key, (set = new Set()));
-  for (const hexcode of hexcodes) set.add(hexcode);
+/** Adds a hexcode to a key, keeping its strongest strength. */
+function add(index: Index, key: string, hexcode: string, strength: number) {
+  let hexcodes = index.get(key);
+  if (!hexcodes) index.set(key, (hexcodes = new Map()));
+  hexcodes.set(hexcode, Math.min(strength, hexcodes.get(hexcode) ?? strength));
 }
 
 async function locales(): Promise<string[]> {
@@ -115,15 +135,20 @@ async function main() {
   console.log(`${listed.size} listed emoji\n\nlocale    keys  stems      raw     gzip`);
   for (const locale of await locales()) {
     const entries = await readJson<EmojibaseEntry[]>(join(EMOJIBASE, locale, 'data.json'));
-    const keys = new Map<string, Set<string>>();
+    const keys: Index = new Map();
     for (const entry of entries) {
       const hexcode = entry.hexcode.toLowerCase();
       if (!listed.has(hexcode)) continue;
-      for (const key of keysOf(entry)) add(keys, key, [hexcode]);
+      for (const [key, strength] of keysOf(entry)) add(keys, key, hexcode, strength);
     }
 
-    const stems = new Map<string, Set<string>>();
-    if (hasStemmer(locale)) for (const [key, hexcodes] of keys) add(stems, stemPhrase(key, locale), hexcodes);
+    const stems: Index = new Map();
+    if (hasStemmer(locale)) {
+      for (const [key, hexcodes] of keys) {
+        const stemmed = stemPhrase(key, locale);
+        for (const [hexcode, strength] of hexcodes) add(stems, stemmed, hexcode, strength);
+      }
+    }
 
     const data: KeywordIndexData = { locale, version: 1, keys: sorted(keys, order), stems: sorted(stems, order) };
     const size = await write(join(KEYWORDS_DIR, `${locale}.json`), data);
@@ -155,9 +180,11 @@ async function main() {
 
   const items: [string, string][] = [];
   const dropped: string[] = [];
+  const textLike: string[] = [];
   const offer = (text: string, hexcode: string) => {
     if (items.some(([t]) => t === text)) return;
-    if (listed.has(hexcode)) items.push([text, hexcode]);
+    if (TEXT_LIKE_EMOTICON.test(text)) textLike.push(text);
+    else if (listed.has(hexcode)) items.push([text, hexcode]);
     else dropped.push(`${text} ${hexcode}`);
   };
   for (const entry of english) {
@@ -167,6 +194,7 @@ async function main() {
   const emoticons: EmoticonData = { version: 1, items };
   await write(join(DATA_DIR, 'emoticons.json'), emoticons);
   console.log(`emoticons.json: ${items.length} emoticons`);
+  if (textLike.length) console.log(`  too much like text (left out): ${textLike.join(' ')}`);
   if (dropped.length) console.log(`  not listed in emoji-data (left out): ${dropped.join(', ')}`);
 }
 

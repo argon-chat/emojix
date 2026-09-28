@@ -1,10 +1,12 @@
 import { describe, test, expect, beforeAll } from "vitest";
 import { KeywordIndex, loadKeywordIndex, normalizeQuery, type KeywordMatch } from "../../src/core/suggest";
+import { serveFromDisk } from "./serveFromDisk";
 
 let en: KeywordIndex;
 let ru: KeywordIndex;
 
 beforeAll(async () => {
+  serveFromDisk();
   [en, ru] = await Promise.all([loadKeywordIndex("en"), loadKeywordIndex("ru")]);
 });
 
@@ -75,6 +77,12 @@ describe("matchPrefix", () => {
     }
   });
 
+  test("the emoji a key names comes first: label, then tag, then a word of either", () => {
+    expect(en.matchPrefix("fir")[0]).toMatchObject({ hexcode: "1f525", key: "fire" });
+    expect(en.matchPrefix("fire")[0]).toMatchObject({ hexcode: "1f525", exact: true });
+    expect(ru.matchPrefix("огонь")[0]).toMatchObject({ hexcode: "1f525", exact: true });
+  });
+
   test("limit", () => {
     expect(en.matchPrefix("s")).toHaveLength(64);
     expect(en.matchPrefix("s", 5)).toHaveLength(5);
@@ -85,6 +93,14 @@ describe("matchExact", () => {
   test("keys only by equality", () => {
     expect(find(en.matchExact("fire"), "1f525")).toMatchObject({ kind: "keyword", exact: true });
     expect(en.matchExact("fir")).toEqual([]);
+  });
+
+  test("the emoji labelled with the key first, before those that only have it as a tag or word", () => {
+    expect(en.matchExact("fire")[0]?.hexcode).toBe("1f525");
+    expect(ru.matchExact("огонь")[0]?.hexcode).toBe("1f525");
+    // "heart on fire" has "fire" as a word of its label only.
+    const fire = en.matchExact("fire").map((m) => m.hexcode);
+    expect(fire.indexOf("2764-fe0f-200d-1f525")).toBeGreaterThan(fire.indexOf("1f525"));
   });
 
   test("then the stem", () => {

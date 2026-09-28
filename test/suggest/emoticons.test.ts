@@ -14,6 +14,12 @@ describe("EMOTICONS", () => {
     expect(emoticon(":o")?.hexcode).toBe("1f632");
     expect(emoticon(":-O")?.hexcode).toBe("1f62e");
   });
+
+  test("none that is ordinary text: a digit and ), a capital and :", () => {
+    expect(EMOTICONS.filter((e) => /^(?:\d\)|[A-Z]:)$/.test(e.text))).toEqual([]);
+    expect(emoticon("8)")).toBeUndefined();
+    expect(emoticon("D:")).toBeUndefined();
+  });
 });
 
 describe("emoticonBefore", () => {
@@ -23,10 +29,23 @@ describe("emoticonBefore", () => {
     expect(emoticonBefore("line\n<3")?.emoticon.hexcode).toBe("2764");
   });
 
-  test("not inside a word", () => {
+  test("not after a letter or digit", () => {
     expect(emoticonBefore("a:)")).toBeNull();
+    expect(emoticonBefore("1:)")).toBeNull();
     expect(emoticonBefore("hello :) there")).toBeNull();
     expect(emoticonBefore("")).toBeNull();
+  });
+
+  test("not right after an opening bracket", () => {
+    expect(emoticonBefore("(:)")).toBeNull();
+    expect(emoticonBefore("see (:)")).toBeNull();
+    expect(emoticonBefore("(8)")).toBeNull();
+    expect(emoticonBefore("( :)")?.emoticon.text).toBe(":)");
+  });
+
+  test("text that only looks like one", () => {
+    expect(emoticonBefore("item 8)")).toBeNull();
+    expect(emoticonBefore("Plan D:")).toBeNull();
   });
 
   test("the longest one", () => {

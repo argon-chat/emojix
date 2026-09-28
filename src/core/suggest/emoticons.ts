@@ -9,7 +9,7 @@ const LONGEST_FIRST = [...EMOTICONS].sort((a, b) => b.text.length - a.text.lengt
 
 /**
  * The longest emoticon that ends `text` and starts it or follows whitespace ("hello :)"), exactly
- * as typed; null when there is none ("a:)").
+ * as typed; null when there is none. So never after a letter, digit or bracket: "a:)", "1:)", "(:)".
  */
 export function emoticonBefore(text: string): { emoticon: Emoticon; start: number } | null {
   for (const emoticon of LONGEST_FIRST) {

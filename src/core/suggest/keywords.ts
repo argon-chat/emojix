@@ -2,19 +2,21 @@ import { findExact, lowerBound } from './search';
 import { stemPhrase } from './stem';
 import type { KeywordIndexData, KeywordMatch } from './types';
 
-const FILES = import.meta.glob<KeywordIndexData>('../../data/keywords/*.json', { import: 'default' });
-const LOADERS = new Map(
-  Object.entries(FILES).map(([path, load]) => [path.slice(path.lastIndexOf('/') + 1, -'.json'.length), load]),
+// Asset URLs, fetched rather than import()ed: a module is never unloaded, so imported data could
+// never be freed by releaseKeywordIndexes().
+const FILES = import.meta.glob<string>('../../data/keywords/*.json', { query: '?url', import: 'default', eager: true });
+const URLS = new Map(
+  Object.entries(FILES).map(([path, url]) => [path.slice(path.lastIndexOf('/') + 1, -'.json'.length), url]),
 );
 
 /** Every locale with a keyword index (emojibase ids: "en", "en-gb", "ru", "zh-hant", …). */
-export const SUGGEST_LOCALES: readonly string[] = Object.freeze([...LOADERS.keys()].sort());
+export const SUGGEST_LOCALES: readonly string[] = Object.freeze([...URLS.keys()].sort());
 
 type Entries = KeywordIndexData['keys'];
 
 interface Candidate {
   match: KeywordMatch;
-  /** Position in its key's hexcode list: emoji order. */
+  /** Position in its key's hexcode list: strongest match first (see KeywordIndexData). */
   rank: number;
 }
 
@@ -112,17 +114,32 @@ export class KeywordIndex {
   }
 }
 
+/**
+ * Loads in flight and loaded, by locale. Written only when a load starts, so one still in flight
+ * at releaseKeywordIndexes() cannot put its index back.
+ */
 const loaded = new Map<string, Promise<KeywordIndex>>();
 
-/** The index of a locale in SUGGEST_LOCALES, fetched on first use and kept. */
+async function fetchIndex(url: string): Promise<KeywordIndex> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+  return new KeywordIndex((await response.json()) as KeywordIndexData);
+}
+
+/** The index of a locale in SUGGEST_LOCALES, fetched on first use and kept until releaseKeywordIndexes(). */
 export function loadKeywordIndex(locale: string): Promise<KeywordIndex> {
   const cached = loaded.get(locale);
   if (cached) return cached;
-  const load = LOADERS.get(locale);
-  if (!load) return Promise.reject(new Error(`No emoji keywords for locale "${locale}"`));
-  const promise = load().then((data) => new KeywordIndex(data));
+  const url = URLS.get(locale);
+  if (url === undefined) return Promise.reject(new Error(`No emoji keywords for locale "${locale}"`));
+  const promise = fetchIndex(url);
   loaded.set(locale, promise);
-  // A failed fetch (offline, a stale chunk) is retried on the next call.
+  // A failed fetch is retried on the next call; the identity check leaves a newer load alone.
   promise.catch(() => loaded.get(locale) === promise && loaded.delete(locale));
   return promise;
+}
+
+/** Drops every index, loaded or loading, so its data can be collected; the next load fetches again. */
+export function releaseKeywordIndexes(): void {
+  loaded.clear();
 }

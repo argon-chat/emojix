@@ -23,6 +23,7 @@ export {
   normalizeQuery,
   resolveSuggestLocales,
   loadKeywordIndex,
+  releaseKeywordIndexes,
   KeywordIndex,
   matchShortcodes,
   EMOTICONS,
